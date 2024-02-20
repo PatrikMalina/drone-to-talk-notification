@@ -7,13 +7,36 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/drone/drone-template-lib/template"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 )
 
+// Helper function to convert string to number or boolean if possible
+func convertToCorrectType(s string) interface{} {
+	if f, err := strconv.ParseFloat(s, 64); err == nil {
+		return f // Return as float if possible
+	} else if i, err := strconv.Atoi(s); err == nil {
+		return i // Return as int if possible
+	} else if b, err := strconv.ParseBool(s); err == nil {
+		return b // Return as bool if possible
+	}
+	return s // Return as string
+}
+
 func main() {
 	fmt.Println("Starting drone to talk message!")
+
+	// Populate all env variables
+	envData := make(map[string]interface{})
+	for _, env := range os.Environ() {
+		pair := strings.SplitN(env, "=", 2)
+		if len(pair) == 2 {
+			envData[pair[0]] = convertToCorrectType(pair[1])
+		}
+	}
 
 	// Read environment variables
 	serverURL := os.Getenv("PLUGIN_NEXTCLOUD_SERVER_URL")
@@ -26,29 +49,36 @@ func main() {
 		fmt.Println("Error: Missing required parameter NEXTCLOUD_SERVER_URL")
 		os.Exit(1)
 	}
+
 	if secret == "" {
 		fmt.Println("Error: Missing required parameter BOT_SECRET")
 		os.Exit(1)
 	}
+
+	if roomId == "" {
+		fmt.Println("Error: Missing required parameter ROOM_ID")
+		os.Exit(1)
+	}
+
 	if message == "" {
 		// Read Drone environment variables
-    buildStatus := os.Getenv("DRONE_BUILD_STATUS")
-    branchName := os.Getenv("DRONE_BRANCH")
+		buildStatus := os.Getenv("DRONE_BUILD_STATUS")
+		branchName := os.Getenv("DRONE_BRANCH")
 		branchLink := os.Getenv("DRONE_REPO_LINK")
-    commit := strings.TrimSpace(os.Getenv("DRONE_COMMIT_MESSAGE"))
-    author := os.Getenv("DRONE_COMMIT_AUTHOR")
-    sha := os.Getenv("DRONE_COMMIT_SHA")
+		commit := strings.TrimSpace(os.Getenv("DRONE_COMMIT_MESSAGE"))
+		author := os.Getenv("DRONE_COMMIT_AUTHOR")
+		sha := os.Getenv("DRONE_COMMIT_SHA")
 		commitLink := os.Getenv("DRONE_COMMIT_LINK")
-    link := os.Getenv("DRONE_BUILD_LINK")
+		link := os.Getenv("DRONE_BUILD_LINK")
 
-    // Set the status icon based on build status
-    status := "❌ **Failed**"
-    if buildStatus == "success" {
-        status = "✅ **Success**"
-    }
+		// Set the status icon based on build status
+		status := "❌ **Failed**"
+		if buildStatus == "success" {
+			status = "✅ **Success**"
+		}
 
-    // Create the default message
-    message = fmt.Sprintf(`
+		// Create the default message
+		message = fmt.Sprintf(`
 		Status: %s
 		Branch: [%s](%s)
 		Commit: %s
@@ -56,10 +86,15 @@ func main() {
 		Hash: [%s](%s)
 		[View full log here](%s)`, status, branchName, branchLink, commit, author, sha, commitLink, link)
 
-	}
-	if roomId == "" {
-		fmt.Println("Error: Missing required parameter ROOM_ID")
-		os.Exit(1)
+	} else {
+		// Render the template with the provided data
+		tmpl, err := template.RenderTrim(message, envData)
+		if err != nil {
+			fmt.Println("Error rendering template:", err)
+			os.Exit(1)
+		}
+
+		message = tmpl
 	}
 
 	// Prepare the request

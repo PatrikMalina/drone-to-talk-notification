@@ -2,6 +2,10 @@
 
 This Docker image is designed for use with Drone CI as a plugin to send messages to a Nextcloud Talk room that has a bot.
 
+## Template
+
+Using [drone-template-lib](https://github.com/drone/drone-template-lib?tab=readme-ov-file)
+
 ## Usage:
 
 To use this Docker image in your Drone CI pipeline, specify it as a step in your .drone.yml file. Configure the necessary environment variables to customize the message and target room.
