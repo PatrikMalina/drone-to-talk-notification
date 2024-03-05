@@ -23,7 +23,7 @@ func convertToCorrectType(s string) interface{} {
 	} else if b, err := strconv.ParseBool(s); err == nil {
 		return b // Return as bool if possible
 	}
-	return s // Return as string
+	return strings.TrimSpace(s) // Return as string
 }
 
 func main() {
@@ -61,41 +61,26 @@ func main() {
 	}
 
 	if message == "" {
-		// Read Drone environment variables
-		buildStatus := os.Getenv("DRONE_BUILD_STATUS")
-		branchName := os.Getenv("DRONE_BRANCH")
-		branchLink := os.Getenv("DRONE_REPO_LINK")
-		commit := strings.TrimSpace(os.Getenv("DRONE_COMMIT_MESSAGE"))
-		author := os.Getenv("DRONE_COMMIT_AUTHOR")
-		sha := os.Getenv("DRONE_COMMIT_SHA")
-		commitLink := os.Getenv("DRONE_COMMIT_LINK")
-		link := os.Getenv("DRONE_BUILD_LINK")
 
-		// Set the status icon based on build status
-		status := "❌ **Failed**"
-		if buildStatus == "success" {
-			status = "✅ **Success**"
-		}
-
-		// Create the default message
-		message = fmt.Sprintf(`
-		Status: %s
-		Branch: [%s](%s)
-		Commit: %s
-		Author: %s
-		Hash: [%s](%s)
-		[View full log here](%s)`, status, branchName, branchLink, commit, author, sha, commitLink, link)
-
-	} else {
-		// Render the template with the provided data
-		tmpl, err := template.RenderTrim(message, envData)
-		if err != nil {
-			fmt.Println("Error rendering template:", err)
-			os.Exit(1)
-		}
-
-		message = tmpl
+		message = `
+			Status: {{#success DRONE_BUILD_STATUS}}✅ **Success**{{else}}❌ **Failed**{{/success}}
+			Branch: [{{DRONE_BRANCH}}]({{DRONE_REPO_LINK}})
+			Commit: {{DRONE_COMMIT_MESSAGE}}
+			Author: {{DRONE_COMMIT_AUTHOR}}
+			Hash: [{{DRONE_COMMIT_SHA}}]({{DRONE_COMMIT_LINK}})
+			[View full log here]({{DRONE_BUILD_LINK}})
+		`
 	}
+
+	// Render the template with the provided data
+	tmpl, err := template.RenderTrim(message, envData)
+	if err != nil {
+		fmt.Println("Error rendering template:", err)
+		os.Exit(1)
+	}
+
+	message = tmpl
+	
 
 	// Prepare the request
 	url := fmt.Sprintf("%s/ocs/v2.php/apps/spreed/api/v1/bot/%s/message", serverURL, roomId)
